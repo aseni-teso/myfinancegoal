@@ -1,0 +1,44 @@
+# Byte-compiled / Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.venv/
+venv/
+env/
+ENV/
+
+# Editor/IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Data and runtime (local, sensitive)
+data/
+*.sqlite3
+
+# Logs and backups
+*.log
+*.bak
+*.bkp
+state_backup_*
+backup_*.json
+
+# pytest / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Build/dist
+dist/
+build/
+*.egg-info/
+
+# Secrets (if any)
+.env
