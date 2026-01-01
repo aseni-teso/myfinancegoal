@@ -1,4 +1,9 @@
 {
   "transactions": [],
-  "goals": []
+  "goals": [
+    {
+      "date": "2026-01-01",
+      "amount": 60000.0
+    }
+  ]
 }

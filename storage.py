@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict
 
-DATA_DIR = Path.cwd() / "myfinancegoal" / "data"
+DATA_DIR = Path.cwd() / "data"
 CONFIG_PATH = DATA_DIR / "config.json"
 STATE_PATH = DATA_DIR / "state.json"
 
@@ -34,9 +34,19 @@ def load_config() -> Dict:
       "base_date": None,
       "base_amount": None
     }
-    return load_json(CONFIG_PATH, default)
+    obj = load_json(CONFIG_PATH, default)
+    # validate basic shape: must be dict and contain isFirstLaunch key
+    if not isinstance(obj, dict) or "isFirstLaunch" not in obj:
+        # possible file corruption (state saved into config). return defaut instead
+        return default
+    return obj
 
 def save_config(cfg: Dict) -> None:
+    # defensive: ensure cfg is dict
+    if not isinstance(cfg, dict):
+        raise TypeError("save_config expects a dict")
+    # debug/logging: you can uncomment for troubleshooting
+    # print("DEBUG: saving config to", CONFIG_PATH)
     save_json(CONFIG_PATH, cfg)
 
 def load_state() -> Dict:
@@ -44,9 +54,17 @@ def load_state() -> Dict:
         "transactions": [],
         "goals": []
     }
-    return load_json(STATE_PATH, default)
+    obj = load_json(STATE_PATH, default)
+    # validate basic shape: must be dict and contain transactions key
+    if not isinstance(obj, dict) or "transactions" not in obj:
+        # possible file corruption (config saved into state). return default instead
+        return default
+    return obj
 
 def save_state(state: Dict) -> None:
+    if not isinstance(state, dict):
+        raise TypeError("save_state expects a dict")
+    # print("DEBUG: saving state to", STATE_PATH)
     save_json(STATE_PATH, state)
 
 def backup_state() -> Path:
