@@ -3,7 +3,7 @@ import datetime
 import json
 from pathlib import Path
 from storage import load_config, save_config, load_state, save_state, backup_state, CONFIG_PATH, STATE_PATH
-from finance import add_transaction, compute_balance, compute_tithe_total, last_transactions
+from finance import add_transaction, compute_balance, compute_tithe_total, last_transactions, projected_daily_table, format_projected_table
 
 def ask(prompt: str, default: str = "") -> str:
     if default:
@@ -167,6 +167,13 @@ def main():
 
     if cmd == "show-config":
         print_json(cfg)
+        return
+
+    if cmd == "show-savings":
+        cfg = load_config()
+        state = load_state()
+        tbl = projected_daily_table(cfg, state, days=90)
+        print(format_projected_table(tbl, show_days=30))
         return
 
     if cmd == "backup":
