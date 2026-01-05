@@ -172,8 +172,8 @@ def main():
     if cmd == "show-savings":
         cfg = load_config()
         state = load_state()
-        tbl = projected_daily_table(cfg, state, days=90)
-        print(format_projected_table(tbl, show_days=30))
+        tbl = projected_daily_table(cfg, state, days=365)
+        print(format_projected_table(tbl, show_days=14, currency=cfg.get("currency","RUB")))
         return
 
     if cmd == "backup":

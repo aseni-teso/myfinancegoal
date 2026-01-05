@@ -43,10 +43,6 @@ def last_transactions(state: Dict, limit: int = 10) -> List[Dict]:
     return list(reversed(tx))
     
 def _parse_base_goal(cfg: Dict, state: Dict):
-    """
-    Возвращает кортеж (base_date: date, base_amount: float).
-    Берёт из cfg.base_date/base_amount если есть, иначе из state.goal[0], иначе None.
-    """
     bd = cfg.get("base_date")
     ba = cfg.get("base_amount")
     if bd and ba is not None:
@@ -54,7 +50,7 @@ def _parse_base_goal(cfg: Dict, state: Dict):
             return date.fromisoformat(bd), float(ba)
         except:
             pass
-    goals = state.get("goals, []")
+    goals = state.get("goals", [])
     if goals:
         try:
             return date.fromisoformat(goals[0]["date"]), float(goals[0]["amount"])
@@ -62,14 +58,18 @@ def _parse_base_goal(cfg: Dict, state: Dict):
             pass
         return None, None
 
-def projected_daily_table(cfg: Dict, state: Dict, days: int = 30):
+def projected_daily_table(cfg: Dict, state: Dict, days: int = 90):
     today = date.today()
     daily = float(cfg.get("daily_default", 0.0))
     current = compute_balance(cfg, state)
 
     base_date, base_amount = _parse_base_goal(cfg, state)
+
     if base_date is None:
         base_date = today
+        base_amount = current
+
+    if base_date == today:
         base_amount = current
 
     rows = []
@@ -78,22 +78,15 @@ def projected_daily_table(cfg: Dict, state: Dict, days: int = 30):
         expected = round(base_amount + daily * d, 2)
         rows.append((dt.isoformat(), expected))
 
-    ahead_days = None
-    ahead_date = None
-    for d in range (0, days):
-        dt = today + timedelta(days=d)
-        delta = (dt - base_date).days
-        expected = base_amount + daily * delta
-        if current < expected:
-            ahead_days = d - 1
-            break
+    if daily == 0:
+        ahead_days = None
     else:
-        ahead_days = days
-
-    if ahead_days is None:
-        ahead_days = 0
-    if ahead_days >=0:
-        ahead_date = today + timedelta(days=ahead_days)
+        delta_days_from_base_to_today = (today - base_date).days
+        expected_today = base_amount + daily * delta_days_from_base_to_today
+        diff = round(current - expected_today, 2)
+        ahead_days = math.floor(diff / daily)
+        
+    ahead_date = today + timedelta(days=int(ahead_days))
 
     return {
         "today": today.isoformat(),
@@ -103,20 +96,69 @@ def projected_daily_table(cfg: Dict, state: Dict, days: int = 30):
         "daily": round(daily, 2),
         "rows": rows,
         "ahead_days": int(ahead_days),
-        "ahead_date": ahead_date.isoformat() if ahead_date else None
+        "ahead_date": ahead_date.isoformat()
     }
 
-def format_projected_table(tbl: Dict, show_days: int = 14):
+def format_projected_table(tbl: Dict, show_days: int = 14, currency: str = "RUB"):
+    rows_map = {d: v for d, v in tbl.get("rows", [])}
+
+    today = date.fromisoformat(tbl["today"])
+    ahead = date.fromisoformat(tbl["ahead_date"])
+    base_date = date.fromisoformat(tbl["base_date"])
+    daily = tbl["daily"]
+    base_amount = tbl["base_amount"]
+
+    def expected_for(d: date) -> float:
+        iso = d.isoformat()
+        if iso in rows_map:
+            return rows_map[iso]
+        delta = (d - base_date).days
+        return round(base_amount + daily * delta, 2)
+
+    def fmt_line(d: date):
+        iso = d.isoformat()
+        exp = expected_for(d)
+        mark = ""
+        if d == today:
+            mark = " <today"
+        if d == ahead:
+            mark = (mark + ",ahead") if mark else " <ahead"
+            return f"{iso:10} | {exp:12.2f}{mark}"
+
+    start = min(today, ahead)
+    end = max(today, ahead)
+    total_days = (end - start).days + 1
+
     lines = []
-    lines.append(f"Today {tbl['today']}   Current balance: {tbl['current_balance']} {('' if 'currency' not in tbl else tbl.get('currency', ''))}")
+    lines.append(f"Today {tbl['today']}   Current balance: {tbl['current_balance']} {currency}")
     lines.append(f"Base: {tbl['base_date']} -> {tbl['base_amount']}")
     lines.append(f"Daily expected (clean): {tbl['daily']}")
     lines.append("")
-    # header
     lines.append(f"{'Date':10} | {'Expected':>12}")
-    lines.append("-" * 25)
-    for date_iso, expected in tbl["rows"][:show_days]:
-        lines.append(f"{date_iso:10} | {expected:12.2f}")
+    lines.append("-" * 27)
+
+    if total_days <= show_days:
+        cur = start
+        while cur <= end:
+            lines.append(fmt_line(cur))
+            cur += timedelta(days=1)
+    else:
+        head_count = show_days - 2
+        if ahead >= today:
+            cur = start
+            for _ in range(head_count):
+                lines.append(fmt_line(cur))
+                cur += timedelta(days=1)
+            lines.append("...".rjust(11))
+            lines.append(fmt_line(today))
+        else:
+            cur = today
+            for _ in range(head_count):
+                lines.append(fmt_line(cur))
+                cur += timedelta(days=1)
+            lines.append("...".rjust(11))
+            lines.append(fmt_line(ahead))
+
     lines.append("")
     lines.append(f"Вы накопили на {tbl['ahead_days']} дней вперёд, на {tbl['ahead_date']}.")
-    return "\n".join(lines)
+    return "\n".join(str(x) for x in lines)
