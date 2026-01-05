@@ -123,12 +123,9 @@ def format_projected_table(tbl: Dict, show_days: int = 14, currency: str = "RUB"
             mark = " <today"
         if d == ahead:
             mark = (mark + ",ahead") if mark else " <ahead"
-            return f"{iso:10} | {exp:12.2f}{mark}"
+        return f"{iso:10} | {exp:12.2f}{mark}"
 
-    start = min(today, ahead)
-    end = max(today, ahead)
-    total_days = (end - start).days + 1
-
+    delta = (ahead - today).days
     lines = []
     lines.append(f"Today {tbl['today']}   Current balance: {tbl['current_balance']} {currency}")
     lines.append(f"Base: {tbl['base_date']} -> {tbl['base_amount']}")
@@ -137,27 +134,24 @@ def format_projected_table(tbl: Dict, show_days: int = 14, currency: str = "RUB"
     lines.append(f"{'Date':10} | {'Expected':>12}")
     lines.append("-" * 27)
 
-    if total_days <= show_days:
-        cur = start
-        while cur <= end:
+    def append_range(start_day: date, count: int):
+        cur = start_day
+        for _ in range(count):
             lines.append(fmt_line(cur))
             cur += timedelta(days=1)
-    else:
-        head_count = show_days - 2
-        if ahead >= today:
-            cur = start
-            for _ in range(head_count):
-                lines.append(fmt_line(cur))
-                cur += timedelta(days=1)
-            lines.append("...".rjust(11))
-            lines.append(fmt_line(today))
-        else:
-            cur = today
-            for _ in range(head_count):
-                lines.append(fmt_line(cur))
-                cur += timedelta(days=1)
-            lines.append("...".rjust(11))
-            lines.append(fmt_line(ahead))
+
+    if delta <= -14:
+        append_range(ahead, show_days)
+        lines.append("...".rjust(11))
+        lines.append(fmt_line(today))
+    elif -14 < delta < 0:
+        append_range(ahead, show_days)
+    elif 0 <= delta <= 13:
+        append_range(today, show_days)
+    else: # delta >= 14
+        append_range(today, show_days)
+        lines.append("...".rjust(11))
+        lines.append(fmt_line(ahead))
 
     lines.append("")
     lines.append(f"Вы накопили на {tbl['ahead_days']} дней вперёд, на {tbl['ahead_date']}.")
