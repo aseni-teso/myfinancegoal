@@ -6,12 +6,21 @@ import math
 
 def compute_balance(cfg: Dict, state: Dict) -> float:
     init = float(cfg.get("initial_balance", 0.0))
-    total = init + sum(t["amount"] for t in state.get("transactions", []))
+    total = init + sum(
+        t["amount"] for t in state.get("transactions", [])
+        if t.get("type") != "tithe_spend"
+    )
     return round(total, 2)
 
 def compute_tithe_total(state: Dict) -> float:
-    # tithe transactions stored as type == "tithe" with negative amounts
-    total = sum(-t["amount"] for t in state.get("transactions", []) if t.get("type") == "tithe")
+    total = 0.0
+
+    for t in state.get("transactions", []):
+        if t.get("type") == "tithe":
+            total += -t["amount"]
+        elif t.get("type") == "tithe_spend":
+            total += t["amount"]
+
     return round(total, 2)
 
 def add_transaction(cfg: Dict, state: Dict, amount: float, description: str = "", tags: List[str] = None) -> Tuple[Dict, Dict]:
@@ -22,6 +31,7 @@ def add_transaction(cfg: Dict, state: Dict, amount: float, description: str = ""
     if tags is None:
         tags = []
     tithe_enabled = bool(cfg.get("tithe_enabled", False))
+
     if amount > 0 and tithe_enabled:
         t_full = Transaction.create(amount, description, tags, ttype="income")
         state.setdefault("transactions", []).append(t_full.to_dict())
@@ -156,3 +166,22 @@ def format_projected_table(tbl: Dict, show_days: int = 14, currency: str = "RUB"
     lines.append("")
     lines.append(f"Вы накопили на {tbl['ahead_days']} дней вперёд, на {tbl['ahead_date']}.")
     return "\n".join(str(x) for x in lines)
+
+def spend_tithe(cfg: Dict, state: Dict, amount: float, description: str = "") -> Tuple[Dict, Dict]:
+    if amount >= 0:
+        raise ValueError("Сумма должна быть отрицательной.")
+
+    current_tithe = compute_tithe_total(state)
+
+    spend_amount = abs(amount)
+
+    if spend_amount > current_tithe:
+        raise ValueError(f"Недостаточно средств для списания: текущая сумма десятины: {current_tithe}.")
+
+    t = Transaction.create(amount, description or "tithe spend", [], ttype="tithe_spend")
+    state.setdefault("transactions", []).append(t.to_dict())
+
+    save_state(state)
+    save_config(cfg)
+
+    return cfg, state

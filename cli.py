@@ -3,7 +3,7 @@ import datetime
 import json
 from pathlib import Path
 from storage import load_config, save_config, load_state, save_state, backup_state, CONFIG_PATH, STATE_PATH
-from finance import add_transaction, compute_balance, compute_tithe_total, last_transactions, projected_daily_table, format_projected_table
+from finance import add_transaction, compute_balance, compute_tithe_total, last_transactions, projected_daily_table, format_projected_table, spend_tithe
 
 def ask(prompt: str, default: str = "") -> str:
     if default:
@@ -134,6 +134,30 @@ def cmd_history(argv):
     tx = last_transactions(state, limit)
     print_json(tx)
 
+def cmd_spend_tithe(argv):
+    cfg = load_config()
+    state = load_state()
+    if not argv:
+        print("Usage: spend-tithe <amount> [-d description]")
+        return
+    try:
+        amount = float(argv[0])
+        if amount >= 0:
+            print("Сумма должна быть отрицательной.")
+            return
+    except ValueError:
+        print("Неверная сумма.")
+        return
+
+    desc = ""
+    if len(argv) >= 3 and argv[1] == "-d":
+        desc = argv[2]
+    try:
+        cfg, state = spend_tithe(cfg, state, amount, desc or "tithe spend")
+        print("Списано. Текущая десятина:", compute_tithe_total(state))
+    except Exception as e:
+        print("Error:", str(e))
+
 def main():
     cfg = load_config()
     state = load_state()
@@ -145,7 +169,7 @@ def main():
 
 
     if not cmd:
-        print("Запустите с командой: init / add / show-tithe / history / show-config")
+        print("Запустите с командой: init / add / show-tithe / history / show-config / show-savings / spend-tithe")
         return
 
     if cmd == "init":
@@ -174,6 +198,10 @@ def main():
         state = load_state()
         tbl = projected_daily_table(cfg, state, days=365)
         print(format_projected_table(tbl, show_days=14, currency=cfg.get("currency","RUB")))
+        return
+
+    if cmd == "spend-tithe":
+        cmd_spend_tithe(sys.argv[2:])
         return
 
     if cmd == "backup":
